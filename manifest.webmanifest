@@ -1,0 +1,14 @@
+{
+  "name": "Card Perks",
+  "short_name": "Card Perks",
+  "description": "Track credit card credits, deadlines, best card per category and value vs. fees.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f5f9",
+  "theme_color": "#4338ca",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
