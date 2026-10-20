@@ -3,6 +3,7 @@ import { CATALOG, catalogById, CATEGORIES, CURRENCIES, ROTATING } from './data.j
 import * as L from './logic.js';
 import * as store from './store.js';
 import * as sync from './sync.js';
+import * as M from './monarch.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const S = () => store.get();
@@ -262,7 +263,7 @@ function historyChips(card, b) {
     const ended = b.expires && p.start > b.expires;
     const rec = S().usage[`${card.id}|${b.id}|${p.key}`];
     const v = L.recordValue(b, rec), done = L.isDone(b, rec);
-    const cls = ended ? 'na' : future ? 'future' : rec?.skipped ? 'skip' : done ? 'full' : v > 0 ? 'part' : p.end < (card.addedOn || '') ? 'pre' : p.end < t ? 'miss' : 'open';
+    const cls = ended ? 'na' : future ? 'future' : rec?.skipped ? 'skip' : done ? 'full' : v > 0 ? 'part' : p.end < (card.trackedSince || card.addedOn || '') ? 'pre' : p.end < t ? 'miss' : 'open';
     const tip = `${p.label}: ${ended ? 'ended' : rec?.skipped ? 'skipped' : b.kind === 'amount' ? `${money(v)} of ${money(b.amount)}` : done ? 'done' : 'not done'}`;
     return `<button class="h ${cls}" title="${tip}" aria-label="${tip}" ${future || ended ? 'disabled' : ''} data-act="log" data-card="${card.id}" data-ben="${b.id}" data-period="${p.key}">${lab}</button>`;
   }).join('')}</div>`;
@@ -576,11 +577,97 @@ function viewSettings() {
       }).join('')}
     </section>
     <section class="panel">
+      <h2>Import from Monarch</h2>
+      <p class="small muted">In Monarch, open Transactions → ⋯ → Download, then choose the CSV here. Statement credits (Amex dining, Dunkin’, Resy, Chase travel and dining credits…) are matched to your benefits, and you review them before anything is saved. Importing the same file twice won’t double count. The file is read in your browser and never uploaded.</p>
+      <label class="btn primary">Choose Monarch CSV<input type="file" accept=".csv,text/csv" id="monarchFile" hidden></label>
+    </section>
+    <section class="panel">
       <h2>Backup</h2>
       <div class="btns"><button class="btn" data-act="export">Export JSON</button>
       <label class="btn">Import JSON<input type="file" accept="application/json" id="importFile" hidden></label></div>
     </section>
     <p class="small muted">Card terms were researched in October 2026 and change often — check your issuer’s site, and edit any amount on the card page.</p>`;
+}
+
+// ---------- Monarch import ----------
+function openMonarchImport(txns, fileName) {
+  const st = S();
+  if (!st.cards.length) { alert('Add your cards first, then import.'); return; }
+  const accounts = [...new Set(txns.map((t) => t.account))].filter((a) => !/checking|savings|personal profile/i.test(a)).sort();
+  const saved = st.settings.accountMap || {};
+  const map = Object.fromEntries(accounts.map((a) => [a, saved[a] ?? M.guessCard(a, st.cards)]));
+  const dates = txns.map((t) => t.date).sort();
+  const cardOpts = (sel) => `<option value="">— ignore —</option>${st.cards.map((c) => `<option value="${c.id}" ${sel === c.id ? 'selected' : ''}>${esc(L.cardDef(c).name)}</option>`).join('')}`;
+  let result;
+
+  const body = () => {
+    result = M.matchCredits(txns, st.cards, map, st.usage);
+    const fresh = result.matched.filter((m) => !m.dup);
+    const mapped = st.cards.filter((c) => Object.values(map).includes(c.id));
+    const invisible = mapped.flatMap((c) => L.cardBenefits(c).filter((b) => M.notOnStatement(c, b) && !L.isExpired(b) && L.benefitAmount(b) > 0).map((b) => `${esc(b.name)} <span class="muted">(${esc(L.cardDef(c).name)})</span>`));
+    return `
+      <h3>Credits found <span class="count">${fresh.length} new</span></h3>
+      ${result.matched.length ? `<ul class="imp">${result.matched.map((m, i) => `<li class="${m.dup ? 'dup' : ''}">
+        <label class="check"><input type="checkbox" data-m="${i}" ${m.dup ? 'disabled' : 'checked'}>
+        <span class="imp-main"><b>${esc(m.b.name)}</b> · ${esc(m.p.label)}<br><span class="small muted">${L.fmtDate(m.t.date)} · ${cardChip(m.card)} · ${esc(m.t.statement)}${m.dup ? ' · already imported' : ''}</span></span>
+        <b class="imp-amt">${money(m.t.amount)}</b></label></li>`).join('')}</ul>` : '<p class="muted small">No statement credits found for the mapped accounts.</p>'}
+      ${result.other.length ? `<details class="imp-other"><summary>Other credits on these cards (${result.other.length}) — refunds, or credits worded differently</summary>
+        <p class="small muted">If one of these is a benefit credit, pick the benefit to add it.</p>
+        <ul class="imp">${result.other.map((o, i) => `<li class="${o.dup ? 'dup' : ''}"><span class="imp-main">${L.fmtDate(o.t.date)} · ${esc(o.t.statement)}<br><span class="small">${cardChip(o.card)}</span></span>
+          <b class="imp-amt">${money(o.t.amount)}</b>
+          <select data-o="${i}" ${o.dup ? 'disabled' : ''}><option value="">— not a benefit —</option>${L.cardBenefits(o.card).map((b) => `<option value="${b.id}">${esc(b.name)}</option>`).join('')}</select></li>`).join('')}</ul></details>` : ''}
+      ${invisible.length ? `<details class="imp-other"><summary>Benefits bank data can’t show (${invisible.length})</summary><p class="small muted">These are applied inside an app or post as miles, so mark them yourself on the Home screen:</p><ul class="small">${invisible.map((x) => `<li>${x}</li>`).join('')}</ul></details>` : ''}`;
+  };
+
+  dialog(`<h2>Import from Monarch</h2>
+    <p class="small muted">${esc(fileName)} · ${txns.length} transactions · ${L.fmtDate(dates[0])} – ${L.fmtDate(dates.at(-1))}</p>
+    <h3>Which card is each account?</h3>
+    <div class="imp-map">${accounts.map((a) => `<label><span>${esc(a)}</span><select data-acct="${esc(a)}">${cardOpts(map[a])}</select></label>`).join('')}</div>
+    <div id="impBody">${body()}</div>
+    <div class="dlg-actions"><button type="button" class="btn ghost" data-close>Cancel</button><button type="button" class="btn primary" id="impGo">Add credits</button></div>`, (dlg) => {
+    dlg.classList.add('wide');
+    dlg.addEventListener('close', () => dlg.classList.remove('wide'), { once: true });
+    const count = () => {
+      const n = dlg.querySelectorAll('[data-m]:checked').length + [...dlg.querySelectorAll('[data-o]')].filter((s) => s.value).length;
+      $('#impGo', dlg).textContent = n ? `Add ${n} credit${n === 1 ? '' : 's'}` : 'Nothing new — save accounts';
+    };
+    dlg.querySelectorAll('[data-acct]').forEach((s) => { s.onchange = () => { map[s.dataset.acct] = s.value; $('#impBody', dlg).innerHTML = body(); count(); }; });
+    dlg.addEventListener('change', (e) => { if (e.target.dataset.m != null || e.target.dataset.o != null) count(); });
+    count();
+    $('#impGo', dlg).onclick = () => {
+      const picked = [...dlg.querySelectorAll('[data-m]:checked')].map((i) => result.matched[i.dataset.m]);
+      for (const s of dlg.querySelectorAll('[data-o]')) {
+        if (!s.value) continue;
+        const o = result.other[s.dataset.o];
+        const b = L.cardBenefits(o.card).find((x) => x.id === s.value);
+        picked.push({ t: o.t, card: o.card, b, p: L.periodFor(b, o.card, o.t.date, st.usage) });
+      }
+      const groups = new Map();
+      for (const m of picked) {
+        const k = L.usageKey(m.card, m.b, m.p);
+        if (!groups.has(k)) groups.set(k, { b: m.b, items: [] });
+        groups.get(k).items.push(m);
+      }
+      for (const [k, { b, items }] of groups) store.setUsage(k, M.applyToRecord(b, S().usage[k], items));
+      store.setSettings({ accountMap: { ...saved, ...map } });
+      // The export covers these cards from its first date, so earlier gaps in the history strip are real misses.
+      for (const id of new Set(Object.values(map).filter(Boolean))) {
+        const c = cardById(id);
+        if (c && dates[0] < (c.trackedSince || c.addedOn || '9999')) store.updateCard(id, { trackedSince: dates[0] });
+      }
+      const total = picked.reduce((a, m) => a + m.t.amount, 0);
+      dlg.close();
+      location.hash = '#/summary';
+      render();
+      toast(picked.length ? `Added ${money(total)} from ${picked.length} credit${picked.length === 1 ? '' : 's'}.` : 'No new credits — you’re up to date.');
+    };
+  });
+}
+
+function toast(msg) {
+  const el = Object.assign(document.createElement('div'), { className: 'toast', textContent: msg, role: 'status' });
+  document.body.append(el);
+  setTimeout(() => el.remove(), 4000);
 }
 
 // ---------- dialog ----------
@@ -635,6 +722,10 @@ document.addEventListener('change', async (e) => {
     const cats = [...document.querySelectorAll(`[data-rot="${p}"]:checked`)].map((i) => i.value);
     const labels = cats.map((c) => CATEGORIES.find((x) => x.id === c).label).join(', ');
     store.setSettings({ rotating: { ...S().settings.rotating, [p]: { ...(S().settings.rotating?.[p] || {}), [q]: { cats, note: labels } } } });
+  } else if (t.id === 'monarchFile' && t.files[0]) {
+    const file = t.files[0];
+    t.value = '';
+    try { openMonarchImport(M.monarchTransactions(await file.text()), file.name); } catch (err) { alert(`Import failed: ${err.message}`); }
   } else if (t.id === 'importFile' && t.files[0]) {
     try {
       const data = JSON.parse(await t.files[0].text());

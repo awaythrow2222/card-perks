@@ -13,7 +13,20 @@ Live at **https://awaythrow2222.github.io/card-perks/**
   - earning rates, other benefits, and card settings (anniversary, the fee you actually pay, custom rates and credits)
 - **Best card**: for each spending category, your cards ranked by estimated return (points × cents per point). Rotating 5% categories, spending caps, Costco's Visa-only rule and foreign transaction fees are all taken into account.
 - **Summary**: total annual fees vs. the value you've used this year, net per card, and how much credit value is still available before December 31.
-- **Settings**: Google sign-in for sync, cents-per-point values, each quarter's rotating categories, and JSON backup/restore.
+- **Settings**: Google sign-in for sync, cents-per-point values, each quarter's rotating categories, Monarch import, and JSON backup/restore.
+
+### Importing from Monarch
+
+In Monarch, go to Transactions → ⋯ → Download, then in Settings → **Import from Monarch** choose the CSV. The importer:
+
+- guesses which of your cards each Monarch account is (you can change it, and it remembers your choice for next time)
+- matches statement credits by their wording (e.g. `AMEX DINING CREDIT`, `TRAVEL CREDIT $300/YEAR`), even when Monarch filed them under the wrong category
+- assigns each credit to its period; a credit that posts a few days into the next month moves back if that month is already full
+- shows everything for review first, including other credits on those cards (refunds, or wording it doesn't recognize) that you can assign to a benefit by hand
+- remembers each transaction's Monarch ID, so importing an overlapping file never double counts
+- lists the benefits bank data can't show (Uber Cash, DoorDash promos, anniversary miles, Companion Fare), so you know to mark those yourself
+
+The CSV is read in your browser and never uploaded. The wording rules are in `STATEMENT_RULES` in [`js/monarch.js`](js/monarch.js).
 
 ### How tracking works
 
@@ -52,7 +65,7 @@ service cloud.firestore {
 python3 -m http.server 8000
 ```
 
-Then open http://localhost:8000. Tests: `node --test tests/logic.test.mjs`.
+Then open http://localhost:8000. Tests: `node --test tests/*.test.mjs`.
 
 ## Project layout
 
@@ -62,5 +75,6 @@ Then open http://localhost:8000. Tests: `node --test tests/logic.test.mjs`.
 | `js/logic.js` | Periods and deadlines, value used, best-card rankings (pure functions, tested) |
 | `js/store.js` | localStorage state and the merge logic for sync |
 | `js/sync.js` | Google sign-in and Firestore sync |
+| `js/monarch.js` | Monarch CSV parsing and statement-credit matching (tested) |
 | `js/app.js` | Views and dialogs |
 | `sw.js` | Offline cache. Bump `CACHE` when files change. |

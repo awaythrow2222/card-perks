@@ -1,8 +1,8 @@
 /* Card Perks service worker — caches the app shell for offline use.
  * Bump CACHE whenever any file changes, so devices pick up the new version. */
-const CACHE = 'cardperks-v1';
+const CACHE = 'cardperks-v2';
 const ASSETS = [
-  './', 'index.html', 'css/styles.css', 'js/app.js', 'js/data.js', 'js/logic.js', 'js/store.js', 'js/sync.js',
+  './', 'index.html', 'css/styles.css', 'js/app.js', 'js/data.js', 'js/logic.js', 'js/store.js', 'js/sync.js', 'js/monarch.js',
   'js/firebase-config.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
 ];
 

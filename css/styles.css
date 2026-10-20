@@ -274,3 +274,22 @@ details summary { cursor: pointer; color: var(--accent); }
 .earn-row { display: grid !important; grid-template-columns: 1fr 90px; align-items: center; font-weight: 500 !important; }
 .cat summary { color: var(--text); }
 .swatch { box-shadow: inset 0 0 0 1px rgba(128, 128, 140, .35); }
+
+/* Monarch import */
+dialog.wide { width: min(760px, calc(100vw - 24px)); }
+dialog h3 { font-size: .98rem; margin: 16px 0 8px; }
+.imp-map { display: grid; gap: 6px; }
+.imp-map label { display: grid; grid-template-columns: 1fr minmax(150px, 220px); gap: 10px; align-items: center; font-size: .88rem; }
+.imp { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 42vh; overflow: auto; }
+.imp li { display: flex; gap: 10px; align-items: center; padding: 7px 4px; border-bottom: 1px solid var(--line); }
+.imp li .check { flex: 1; align-items: flex-start; }
+.imp li .check input { margin-top: 3px; }
+.imp li select { width: auto; max-width: 190px; padding: 5px 8px; font-size: .85rem; }
+.imp-main { flex: 1; min-width: 0; font-size: .9rem; }
+.imp-amt { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.imp li.dup { opacity: .5; }
+.imp-other { margin-top: 12px; }
+.imp-other ul.small { margin: 6px 0; padding-left: 20px; }
+@media (max-width: 560px) { .imp-map label { grid-template-columns: 1fr; gap: 2px; } .imp li { flex-wrap: wrap; } }
+.btn:disabled { opacity: .5; cursor: default; }
+.toast { position: fixed; left: 50%; bottom: calc(88px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-weight: 600; z-index: 20; box-shadow: var(--shadow); }
